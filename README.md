@@ -22,3 +22,7 @@ Upload the new index.html to the same repository (replace the old one). Change t
 ## Before publishing
 - Fill in your email and date in privacy.html.
 - Keep the privacy link handy if you ever apply to a store.
+
+## Live links
+- Game: https://K71133708-crypto.github.io/last-zone/
+- Privacy policy: https://K71133708-crypto.github.io/last-zone/privacy.html

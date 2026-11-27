@@ -57,7 +57,10 @@ body.playing .btn{display:flex}
 .ov .stats{margin:12px 0;line-height:1.7;font-size:16px}
 #intro{position:fixed;inset:0;z-index:20;background:radial-gradient(circle at 50% 40%,#3a1500,#000 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;transition:opacity .6s}
 #intro.gone{opacity:0}
-.logo{font-size:2.6rem;font-weight:900;letter-spacing:4px;background:linear-gradient(#fff3a0,#ff7a00,#ff2a00);-webkit-background-clip:text;background-clip:text;color:transparent;animation:pop 1s ease-out both;text-align:center}
+.logo{display:flex;flex-direction:column;align-items:center;animation:pop .9s cubic-bezier(.2,1.4,.4,1) both;text-align:center}
+.emblem{width:120px;height:120px;animation:spin 8s linear infinite;filter:drop-shadow(0 0 14px #ff7a00)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ltxt{font-size:3.2rem;font-weight:900;letter-spacing:3px;font-family:Impact,'Arial Black',system-ui,sans-serif;background:linear-gradient(#fff6b0 0%,#ffb020 45%,#ff4d00 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 0 #7a1c00) drop-shadow(0 0 18px rgba(255,120,0,.7));margin-top:6px;line-height:1.1}
 .logo small{display:block;font-size:.9rem;letter-spacing:8px;color:#ffb347;-webkit-text-fill-color:#ffb347}
 @keyframes pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
 .ember{position:absolute;bottom:-10px;width:6px;height:6px;border-radius:50%;background:#ffb347;box-shadow:0 0 8px #ff7a00;animation:rise linear infinite}
@@ -78,9 +81,9 @@ body.playing .btn{display:flex}
 
 <canvas id="c"></canvas>
 
-<div id="intro"><div class="logo">LAST ZONE<small>BATTLE ROYALE</small></div><div class="iload"><div id="ibar"></div></div><button id="istart">TAP TO START</button></div>
+<div id="intro"><div class="logo"><svg class="emblem" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="#ffb347" stroke-width="4" stroke-dasharray="8 6"/><circle cx="50" cy="50" r="28" fill="none" stroke="#ff7a00" stroke-width="5"/><path d="M50 6V22M50 78V94M6 50H22M78 50H94" stroke="#fff" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="50" r="6" fill="#ff2a00"/></svg><span class="ltxt">LAST ZONE</span><small>BATTLE ROYALE</small></div><div class="iload"><div id="ibar"></div></div><button id="istart">TAP TO START</button></div>
 <div id="lobby" class="scr">
-  <h1>LAST ZONE</h1>
+  <h1 class="ltxt" style="font-size:2.6rem;margin:6px 0 2px">LAST ZONE</h1>
   <div class="sub">Last one standing wins</div>
   <div class="bar-top"><span>Best: <span id="lbest">0</span></span><span class="coins">🪙 <span id="lcoins">0</span></span></div>
   <div class="card" style="justify-content:space-around">
@@ -92,6 +95,10 @@ body.playing .btn{display:flex}
   <button class="menu-btn alt" id="bdiff">DIFFICULTY</button>
   <button class="menu-btn alt" id="bsens">SENSITIVITY</button>
   <button class="menu-btn alt" id="bsound">SOUND</button>
+  <button class="menu-btn alt" id="bmap">MAP</button>
+  <button class="menu-btn alt" id="bmode">MODE</button>
+  <button class="menu-btn alt" id="bname">NAME</button>
+  <div id="namebox" style="display:none;text-align:center;margin:8px 0"><input id="nameinp" maxlength="12" style="font-size:18px;padding:10px;border-radius:10px;border:0;width:200px;text-align:center"> <button class="act" id="namesave" style="padding:10px 16px">SAVE</button></div>
   <button class="menu-btn alt" id="barmory">ARMORY (Weapons)</button>
   <button class="menu-btn alt" id="bchars">CHARACTERS</button>
   <button class="menu-btn alt" id="bhelp">HOW TO PLAY</button>
@@ -257,6 +264,58 @@ const DIFF={easy:{count:12,hp:80,dmg:6,spread:.3,label:'EASY'},medium:{count:22,
 let diff='medium',sens=1.3;
 try{diff=localStorage.getItem('lsr_diff')||'medium';sens=+(localStorage.getItem('lsr_sens')||1)}catch(e){}
 let training=false,aimTouch=null,padAng=0,aimOn=false;
+const MAPS={
+  grass:{name:'Grassland',bg:'#2f4a2b',rock:'#6b6f6a'},
+  desert:{name:'Desert',bg:'#c9a46a',rock:'#7a5a33'},
+  snow:{name:'Snowfield',bg:'#dfeef4',rock:'#8fa9b8'}
+};
+let map='grass';try{map=localStorage.getItem('lsr_map')||'grass';if(!MAPS[map])map='grass';}catch(e){}
+const MODES={
+  solo:{name:'Solo',allies:0,extra:2},
+  duo:{name:'Duo',allies:1,extra:1},
+  squad:{name:'Squad',allies:3,extra:0}
+};
+let mode='squad';try{mode=localStorage.getItem('lsr_mode')||'squad';if(!MODES[mode])mode='squad';}catch(e){}
+let pname='YOU';try{pname=localStorage.getItem('lsr_name')||'YOU';}catch(e){}
+let totalPlayers=25;
+const ZP=[{wait:45,to:750,dur:30},{wait:30,to:420,dur:30},{wait:25,to:200,dur:25},{wait:20,to:80,dur:20}];
+let zPhase=0,zT=0,zFrom=1150,ROCKS=[];
+function makeRocks(){
+  const out=[];let tries=0;
+  while(out.length<16&&tries<400){
+    tries++;
+    const w=rnd(60,140),h=rnd(60,140),x=rnd(60,WORLD-200),y=rnd(60,WORLD-200);
+    if(Math.hypot(x+w/2-CX,y+h/2-CY)<260)continue;
+    out.push({x,y,w,h});
+  }
+  return out;
+}
+function blocked(x,y){
+  for(const r of ROCKS){if(x>r.x-14&&x<r.x+r.w+14&&y>r.y-14&&y<r.y+r.h+14)return true;}
+  return false;
+}
+function updateZone(dt){
+  if(training)return;
+  const ph=ZP[zPhase];
+  if(!ph){zr=zFrom;return;}
+  zT+=dt;
+  if(zT<ph.wait){zr=zFrom;}
+  else{
+    const k=Math.min(1,(zT-ph.wait)/ph.dur);
+    zr=zFrom+(ph.to-zFrom)*k;
+    if(k>=1){zPhase++;zT=0;zFrom=ph.to;}
+  }
+}
+function zoneText(){
+  if(zPhase>=ZP.length)return 'Final zone';
+  const ph=ZP[zPhase];
+  if(zT<ph.wait)return 'Phase '+(zPhase+1)+': shrinks in '+Math.ceil(ph.wait-zT)+'s';
+  return 'ZONE SHRINKING!';
+}
+$('bname').onclick=()=>{const b=$('namebox');b.style.display=b.style.display==='none'?'block':'none';$('nameinp').value=pname;$('nameinp').focus();};
+$('namesave').onclick=()=>{const t=$('nameinp').value.trim().slice(0,12);if(!t)return;pname=t;try{localStorage.setItem('lsr_name',pname)}catch(e){}$('namebox').style.display='none';renderOpts();};
+$('bmode').onclick=()=>{const k=Object.keys(MODES);mode=k[(k.indexOf(mode)+1)%k.length];try{localStorage.setItem('lsr_mode',mode)}catch(e){}renderOpts();};
+$('bmap').onclick=()=>{const k=Object.keys(MAPS);map=k[(k.indexOf(map)+1)%k.length];try{localStorage.setItem('lsr_map',map)}catch(e){}renderOpts();};
 const WORLD=2400,CX=1200,CY=1200,ZONE0=1150,AMMO_BOX=20;
 let units=[],P=null,bullets=[],loot=[],zr=ZONE0,running=false,paused=false;
 let fire=false,keys={},jx=0,jy=0,js=null,last=0,aimA=0,kills=0,score=0,time=0,runCoins=0;
@@ -276,13 +335,15 @@ function startMatch(tr){
   P=mk('a','YOU',ch.color,CX+rnd(-200,200),CY+rnd(-200,200),ch.hp,ch.spd);
   P.isP=true;P.w=w;P.mag=w.mag;P.res=training?Infinity:w.res;P.meds=1;P.healT=0;
   units=[P];
-  for(let i=0;i<2;i++){const a=mk('a','ALLY','#4cd964',P.x+rnd(-60,60),P.y+rnd(-60,60),100,150);a.w=WEAPONS.pistol;a.mag=Infinity;units.push(a);}
-  const cnt=training?5:DIFF[diff].count;
+  for(let i=0;i<MODES[mode].allies;i++){const a=mk('a','ALLY','#4cd964',P.x+rnd(-60,60),P.y+rnd(-60,60),100,150);a.w=WEAPONS.pistol;a.mag=Infinity;units.push(a);}
+  const cnt=training?5:DIFF[diff].count+MODES[mode].extra;
   for(let i=0;i<cnt;i++){const e=mk('e','ENEMY','#ff6b6b',rnd(100,WORLD-100),rnd(100,WORLD-100),training?100:DIFF[diff].hp,70);e.dummy=training;units.push(e);}
   for(const u of units)if(!u.isP&&u.team==='e')u.w=WEAPONS.pistol;
+  totalPlayers=units.length;
   bullets=[];loot=[];
   for(let i=0;i<60;i++)loot.push({x:rnd(60,WORLD-60),y:rnd(60,WORLD-60),type:Math.random()<.6?'ammo':'hp'});
   zr=ZONE0;kills=0;score=0;time=0;runCoins=0;running=true;paused=false;
+  zPhase=0;zT=0;zFrom=ZONE0;ROCKS=makeRocks();
   document.body.classList.add('playing');
   $('pause').classList.remove('on');$('result').classList.remove('on');
   $('wname').textContent=w.name;
@@ -370,7 +431,7 @@ function finish(win){
   if(finalScore>S.best)S.best=finalScore;
   save();
   $('rtitle').textContent=win?'Winner Winner!':'Eliminated';
-  $('rstats').innerHTML='Place: <b>#'+placed+'</b> of 25<br>Kills: <b>'+kills+'</b><br>Survived: <b>'+Math.floor(time)+'s</b><br>Score: <b>'+finalScore+'</b><br>Coins earned: <b>🪙 '+gained+'</b><br>Total coins: <b>🪙 '+S.coins+'</b>';
+  $('rstats').innerHTML='Place: <b>#'+placed+'</b> of '+totalPlayers+'<br>Kills: <b>'+kills+'</b><br>Survived: <b>'+Math.floor(time)+'s</b><br>Score: <b>'+finalScore+'</b><br>Coins earned: <b>🪙 '+gained+'</b><br>Total coins: <b>🪙 '+S.coins+'</b>';
   $('result').classList.add('on');
 }
 
@@ -408,7 +469,7 @@ function update(dt){
   let mx=((keys.KeyD||keys.ArrowRight)?1:0)-((keys.KeyA||keys.ArrowLeft)?1:0)+jx*sens;
   let my=((keys.KeyS||keys.ArrowDown)?1:0)-((keys.KeyW||keys.ArrowUp)?1:0)+jy*sens;
   const m=Math.hypot(mx,my);
-  if(m>0.01){const s=Math.min(m,1);mx/=m;my/=m;P.x+=mx*P.spd*1.35*s*dt;P.y+=my*P.spd*1.35*s*dt;aimA=Math.atan2(my,mx);}
+  if(m>0.01){const s=Math.min(m,1);mx/=m;my/=m;const ox=P.x,oy=P.y;P.x+=mx*P.spd*1.35*s*dt;P.y+=my*P.spd*1.35*s*dt;if(blocked(P.x,P.y)&&!blocked(ox,oy)){P.x=ox;P.y=oy;}aimA=Math.atan2(my,mx);}
   P.x=clamp(P.x,20,WORLD-20);P.y=clamp(P.y,20,WORLD-20);
 
   for(const l of loot){
@@ -443,10 +504,10 @@ function update(dt){
   for(const u of units){
     if(!u.alive)continue;
     const zoneOut=!training&&Math.hypot(u.x-CX,u.y-CY)>zr;
-    if(zoneOut)u.hp-=5*dt;
+    if(zoneOut)u.hp-=(4+zPhase)*dt;
     if(u.hp<=0){kill(u,false);continue;}
     if(u.isP||u.dummy)continue;
-    u.cool-=dt;u.t-=dt;
+    u.cool-=dt;u.t-=dt;u.px=u.x;u.py=u.y;
     if(u.team==='a'){
       const tgt=nearest(u,'e',350);
       let vx=0,vy=0;
@@ -473,12 +534,13 @@ function update(dt){
       }
     }
     u.x=clamp(u.x,20,WORLD-20);u.y=clamp(u.y,20,WORLD-20);
+    if(blocked(u.x,u.y)&&!blocked(u.px,u.py)){u.x=u.px;u.y=u.py;}
   }
 
   if(!P.alive){finish(false);return;}
 
   for(const b of bullets){
-    b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
+    b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;if(blocked(b.x,b.y))b.life=0;
     for(const u of units){
       if(u.alive&&u.team!==b.team&&dist(u,b)<18){
         u.hp-=b.dmg;b.life=0;if(u.isP)sfx.hurt();else if(b.own)sfx.hit();
@@ -491,7 +553,7 @@ function update(dt){
 
   if(training){if(!units.some(u=>u.team==='e'&&u.alive)){for(let i=0;i<5;i++){const e=mk('e','ENEMY','#ff6b6b',rnd(200,WORLD-200),rnd(200,WORLD-200),100,70);e.dummy=true;units.push(e);}}}
   else if(!units.some(u=>u.team==='e'&&u.alive)){finish(true);return;}
-  if(!training)zr=Math.max(90,zr-dt*9);
+  updateZone(dt);
 }
 
 function label(u,y,text,color){
@@ -507,11 +569,11 @@ function drawUnit(u){
   ctx.beginPath();ctx.moveTo(u.x,u.y);ctx.lineTo(u.x+Math.cos(a)*24,u.y+Math.sin(a)*24);ctx.stroke();
   ctx.fillStyle='#000';ctx.fillRect(u.x-18,u.y-30,36,5);
   ctx.fillStyle=u.color;ctx.fillRect(u.x-18,u.y-30,36*clamp(u.hp/u.maxHp,0,1),5);
-  label(u,u.y-36,u.isP?'YOU':u.team==='a'?'ALLY':'ENEMY',u.color);
+  label(u,u.y-36,u.isP?pname:u.team==='a'?'ALLY':'ENEMY',u.color);
 }
 
 function draw(){
-  ctx.fillStyle='#2f4a2b';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=MAPS[map].bg;ctx.fillRect(0,0,W,H);
   if(!P)return;
   ctx.save();
   ctx.translate(-(P.x-W/2),-(P.y-H/2));
@@ -520,6 +582,8 @@ function draw(){
   for(let x=0;x<=WORLD;x+=120){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,WORLD);ctx.stroke();}
   for(let y=0;y<=WORLD;y+=120){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(WORLD,y);ctx.stroke();}
 
+  ctx.fillStyle=MAPS[map].rock;
+  for(const r of ROCKS){ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=3;ctx.strokeRect(r.x,r.y,r.w,r.h);}
   ctx.fillStyle='rgba(200,30,30,.35)';
   ctx.beginPath();ctx.rect(-2000,-2000,WORLD+4000,WORLD+4000);ctx.arc(CX,CY,zr,0,6.283,true);ctx.fill();
   ctx.strokeStyle='#ff4040';ctx.lineWidth=4;
@@ -566,7 +630,7 @@ function draw(){
   $('score').textContent=score+Math.floor(time);
   $('runcoins').textContent=runCoins;
   const out=!training&&Math.hypot(P.x-CX,P.y-CY)>zr;
-  $('zone').textContent=training?'TRAINING':(out?'OUTSIDE ZONE!':'Zone safe');
+  $('zone').textContent=training?'TRAINING':(out?'OUTSIDE ZONE!':zoneText());
   $('zone').className=out?'bad':'';
   $('hp').textContent=Math.max(0,Math.ceil(P.hp));
   $('meds').textContent=P.meds;
@@ -637,6 +701,9 @@ function renderOpts(){
   $('bdiff').textContent='DIFFICULTY: '+DIFF[diff].label;
   $('bsens').textContent='SENSITIVITY: '+Math.round(sens*100)+'%';
   $('bsound').textContent='SOUND: '+(AU.muted?'OFF':'ON');
+  $('bmap').textContent='MAP: '+MAPS[map].name;
+  $('bmode').textContent='MODE: '+MODES[mode].name.toUpperCase();
+  $('bname').textContent='NAME: '+pname;
 }
 function mapT(t){
   if(document.body.classList.contains('rot'))return{identifier:t.identifier,clientX:t.clientY,clientY:innerWidth-t.clientX};
